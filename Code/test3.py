@@ -4,7 +4,12 @@ import numpy as np
 np.random.seed(42)
 date_range = pd.date_range(start='2025-01-01 9:15:00', periods=100, freq='H')
 print(date_range)
-open_price = np.random.uniform(100,200,size=100)
+
+initial_price = 100 
+close_price = initial_price + np.cumsum( np.random.uniform(-2,2,size=100))
+
+open_price = np.roll(close_price,1)
+open_price[0]= initial_price
 high_price = open_price+ np.random.uniform(0,10,size=100)
 
 low_price = open_price- np.random.uniform(0,10,size=100)
