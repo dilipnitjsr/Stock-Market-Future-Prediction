@@ -9,7 +9,7 @@ high_price = open_price+ np.random.uniform(0,10,size=100)
 
 low_price = open_price- np.random.uniform(0,10,size=100)
 
-close_price =  np.random.uniform(low_price,high_price,size=100)
+close_price =  np.random.uniform(low_price,high_price)
 df = pd.DataFrame ({
 'date' : date_range,
 'open' : open_price,
