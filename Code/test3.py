@@ -18,6 +18,6 @@ df = pd.DataFrame ({
 'close' : close_price,})
 x={"close": [100, 102, 101, 103, 105],"open": [100, 102, 101, 103, 105],"high": [100, 102, 101, 103, 105],"low": [100, 102, 101, 103, 105]}
 
-df = pd.DataFrame(x)
+#df = pd.DataFrame(x)
 df["RSI"] = TA.RSI(df)
 print(df)
