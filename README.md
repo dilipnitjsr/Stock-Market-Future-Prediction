@@ -1,74 +1,120 @@
-# Stock-Market-Future-Prediction
-Stock Market Future Prediction 
-Predicting stock market movements is inherently challenging due to the complex, noisy, and non-stationary nature of financial data. No single machine learning model is universally "best" for stock market prediction, as the effectiveness of a model depends on the specific problem, data, and context. However, several models and approaches are commonly used in this domain:
+# Stock Market Future Prediction
 
----
+Research framework for leakage-aware next-period stock-return forecasting and simple backtesting.
 
-### **1. Traditional Machine Learning Models**
-These models are often used for structured data and can be effective when combined with feature engineering.
+The repository retains the original research notes and notebook, but the executable workflow now lives in the `stock_forecast` package.
 
-- **Linear Regression**: Simple baseline for predicting stock prices or returns.
-- **Random Forests**: Handles non-linear relationships and can capture feature importance.
-- **Gradient Boosting Machines (e.g., XGBoost, LightGBM, CatBoost)**: Effective for structured data and often outperforms random forests.
-- **Support Vector Machines (SVM)**: Useful for classification tasks, such as predicting price direction (up/down).
+## Research protocol
 
----
+The framework predicts **next-period return**, rather than fitting directly to future prices:
 
-### **2. Deep Learning Models**
-Deep learning models are better suited for capturing complex patterns in sequential or high-dimensional data.
+```text
+OHLCV history
+    ↓
+features available at time t
+    ↓
+target = Close[t+1] / Close[t] - 1
+    ↓
+chronological train/test split
+    ↓
+naive / Ridge / Random Forest / HistGradientBoosting
+    ↓
+forecast metrics + simple sign-strategy diagnostics
+```
 
-- **Recurrent Neural Networks (RNNs)**: Designed for sequential data, but may struggle with long-term dependencies.
-- **Long Short-Term Memory (LSTM)**: A type of RNN that handles long-term dependencies better, often used for time-series forecasting.
-- **Gated Recurrent Units (GRUs)**: Similar to LSTMs but computationally more efficient.
-- **Convolutional Neural Networks (CNNs)**: Can be used to extract patterns from stock price charts or other image-like data.
-- **Transformer Models**: State-of-the-art for sequential data, especially when combined with attention mechanisms (e.g., for predicting stock trends based on historical data).
+No random train/test split is used. Any preprocessing that learns parameters (for example StandardScaler in the Ridge pipeline) is fitted only on the training segment.
 
----
+## Metrics
 
-### **3. Hybrid Models**
-Combining different models can often yield better results.
+Forecasting:
+- MAE
+- RMSE
+- R²
+- directional accuracy
 
-- **CNN-LSTM**: Combines CNN for feature extraction and LSTM for sequential modeling.
-- **Ensemble Models**: Combines predictions from multiple models (e.g., Random Forest + LSTM) to improve robustness.
+Research backtest diagnostics:
+- cumulative strategy return
+- annualized Sharpe ratio
+- maximum drawdown
+- turnover
 
----
+The backtest includes a configurable transaction-cost assumption and is intentionally simple. It is for research comparison, **not investment advice or a production trading strategy**.
 
-### **4. Reinforcement Learning (RL)**
-Reinforcement learning is used for dynamic decision-making, such as portfolio optimization or trading strategy development.
+## Install
 
-- **Deep Q-Learning (DQN)**: For learning optimal trading strategies.
-- **Proximal Policy Optimization (PPO)**: A more stable RL algorithm for trading.
+Core framework:
 
----
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
 
-### **5. Time-Series Specific Models**
-These models are specifically designed for time-series forecasting.
+To download market data with yfinance:
 
-- **ARIMA (AutoRegressive Integrated Moving Average)**: A traditional statistical model for time-series data.
-- **Prophet**: Developed by Facebook, designed for forecasting with seasonality and trends.
-- **TBATS**: Handles complex seasonality in time-series data.
+```bash
+pip install -e ".[data,dev]"
+```
 
----
+## Use the existing AAPL data
 
-### **6. Alternative Approaches**
-- **Sentiment Analysis**: Using NLP to analyze news, social media, or earnings reports to predict market movements.
-- **Graph Neural Networks (GNNs)**: For modeling relationships between stocks or assets in a portfolio.
-- **Bayesian Models**: For incorporating uncertainty and probabilistic reasoning.
+The repository contains a historical AAPL sample in `Code/stock_data.csv`.
 
----
+```bash
+python -m stock_forecast.benchmark \
+  --data Code/stock_data.csv \
+  --output-dir artifacts
+```
 
-### **Key Considerations**
-- **Data Quality**: Stock market data is noisy, and predictions are highly sensitive to input data.
-- **Feature Engineering**: Domain knowledge is critical for creating meaningful features (e.g., technical indicators, sentiment scores).
-- **Overfitting**: Financial data is prone to overfitting due to its non-stationary nature. Regularization and robust validation are essential.
-- **Market Efficiency**: In highly efficient markets, it is difficult to outperform simple benchmarks like the random walk hypothesis.
+Outputs:
 
----
+```text
+artifacts/
+  leaderboard.csv
+  predictions.csv
+  config.json
+  ridge.joblib
+  random_forest.joblib
+  hist_gradient_boosting.joblib
+```
 
-### **Conclusion**
-For stock market prediction:
-- Start with simpler models like **Random Forests** or **XGBoost** for structured data.
-- Use **LSTM** or **Transformer-based models** for sequential data.
-- Consider **hybrid models** or **reinforcement learning** for more advanced applications.
+## Download another ticker
 
-Remember, no model can guarantee accurate predictions due to the unpredictable nature of financial markets. Always backtest rigorously and manage risk appropriately.
+```bash
+python -m stock_forecast.download \
+  --ticker MSFT \
+  --start 2015-01-01 \
+  --end 2026-01-01 \
+  --output data/msft.csv
+```
+
+Then:
+
+```bash
+python -m stock_forecast.benchmark --data data/msft.csv
+```
+
+## Leakage controls
+
+The older LSTM experiment scaled the complete dataset before splitting it. That lets test-period extrema influence training transformations. The new framework avoids this by:
+
+1. constructing only backward-looking features;
+2. using next-period return as the target;
+3. splitting chronologically;
+4. fitting trainable preprocessing and models only on the training segment.
+
+## Historical material
+
+The root Markdown files and `stockdata.ipynb` are retained as research notes/history. The old scratch scripts under `Code/` are removed except for the historical CSV dataset.
+
+## Tests
+
+```bash
+pytest
+```
+
+GitHub Actions validates the feature pipeline and runs the benchmark against the committed sample dataset.
+
+## Research caution
+
+Financial time series are non-stationary and noisy. Good performance on one historical split is not evidence of persistent out-of-sample profitability. For serious studies, add rolling/walk-forward evaluation, multiple assets/regimes, robust cost/slippage assumptions, and statistical comparison against simple benchmarks.
