@@ -4,21 +4,20 @@ import pandas as pd
 
 
 def normalize_ohlcv(frame: pd.DataFrame) -> pd.DataFrame:
-    """Return a clean single-ticker OHLCV frame indexed by date.
-
-    Supports ordinary CSV files and the two-row column header emitted by
-    recent yfinance downloads saved with DataFrame.to_csv().
-    """
+    """Return a clean single-ticker OHLCV frame indexed by date."""
     df = frame.copy()
 
-    if "Date" not in df.columns and df.index.name != "Date":
-        # yfinance's multi-index CSV can arrive with metadata rows already read
-        # as records; callers should use load_csv() for that layout.
-        raise ValueError("Expected a Date column")
+    if isinstance(df.columns, pd.MultiIndex):
+        # yfinance commonly emits (Price, Ticker) columns.
+        df.columns = df.columns.get_level_values(0)
 
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"], errors="raise")
         df = df.set_index("Date")
+    elif df.index.name not in {"Date", "Datetime"}:
+        raise ValueError("Expected a Date column or date index")
+
+    df.index = pd.to_datetime(df.index, errors="raise")
 
     wanted = ["Open", "High", "Low", "Close", "Volume"]
     missing = [c for c in wanted if c not in df.columns]
@@ -32,20 +31,25 @@ def normalize_ohlcv(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_csv(path: str) -> pd.DataFrame:
-    raw = pd.read_csv(path)
+    probe = pd.read_csv(path, nrows=2)
 
-    # Detect the yfinance multi-index CSV format:
+    # Recent yfinance DataFrame.to_csv() output for one ticker uses:
     # Price,Close,High,Low,Open,Volume
     # Ticker,AAPL,AAPL,...
     # Date,,,,,
-    if len(raw) >= 2 and str(raw.iloc[0, 0]) not in {"Date", "date"}:
-        first_column = raw.columns[0]
-        if first_column in {"Price", "Ticker"}:
-            data = pd.read_csv(path, skiprows=2)
-            data = data.rename(columns={data.columns[0]: "Date"})
-            return normalize_ohlcv(data)
+    first_col = probe.columns[0] if len(probe.columns) else ""
+    first_value = str(probe.iloc[0, 0]) if len(probe) else ""
+    if first_col == "Price" and first_value == "Ticker":
+        data = pd.read_csv(
+            path,
+            header=[0, 1],
+            index_col=0,
+            parse_dates=True,
+        )
+        data.index.name = "Date"
+        return normalize_ohlcv(data)
 
-    return normalize_ohlcv(raw)
+    return normalize_ohlcv(pd.read_csv(path))
 
 
 def build_features(ohlcv: pd.DataFrame) -> pd.DataFrame:
